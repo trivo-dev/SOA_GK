@@ -11,9 +11,9 @@ Hệ thống được xây dựng theo **kiến trúc hướng dịch vụ (SOA)
 | Student Service      | Quản lý sinh viên   | 8001 | `student_db`      | `sinhvien` |
 | Thesis Service       | Quản lý đề tài      | 8002 | `thesis_db`       | `detai`    |
 | Registration Service | Quản lý đăng ký     | 8003 | `registration_db` | `dangky`   |
-| Web Portal (giao diện) | Giao diện quản lý cho người dùng | 8000 | *không có*  | —          |
+| Web Portal (giao diện) | Giao diện và tài khoản người dùng | 8000 | `portal_db` | Django auth/session |
 
-**Giao diện web:** http://127.0.0.1:8000/. Web Portal không có database riêng, nó chỉ gọi REST API của 3 service.
+**Giao diện web:** http://127.0.0.1:8000/. Portal lưu tài khoản và session trong `portal_db`; dữ liệu sinh viên, đề tài và đăng ký vẫn chỉ thuộc database của từng service.
 
 ## 2. Kiến trúc SOA
 
@@ -83,7 +83,7 @@ Demo_GK/
 │       ├── tests.py                  # Mock HTTP bằng unittest.mock
 │       └── management/commands/seed_data.py
 │
-├── web-portal/                       # Port 8000 - giao diện web, KHÔNG có database
+├── web-portal/                       # Port 8000 - giao diện web, portal_db lưu tài khoản
 │   ├── .env.example                  # URL của 3 service
 │   └── portal/
 │       ├── api_client.py             # Gọi REST API của 3 service (requests)
@@ -126,7 +126,7 @@ THESIS_SERVICE_URL=http://127.0.0.1:8002
 
 ## 6. Tạo database
 
-Một PostgreSQL server, 3 database riêng. Dùng `psql` (hoặc pgAdmin):
+Một PostgreSQL server, 4 database riêng. Dùng `psql` (hoặc pgAdmin):
 
 ```powershell
 & "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -h localhost
@@ -136,6 +136,7 @@ Một PostgreSQL server, 3 database riêng. Dùng `psql` (hoặc pgAdmin):
 CREATE DATABASE student_db;
 CREATE DATABASE thesis_db;
 CREATE DATABASE registration_db;
+CREATE DATABASE portal_db;
 ```
 
 ## 7. Cài requirements
@@ -157,6 +158,7 @@ Tạo bảng (migrate) cho từng service:
 cd student-service;      python manage.py migrate; cd ..
 cd thesis-service;       python manage.py migrate; cd ..
 cd registration-service; python manage.py migrate; cd ..
+cd web-portal;           python manage.py migrate; cd ..
 ```
 
 ## 8. Chạy từng service
@@ -226,7 +228,7 @@ cd web-portal;           python manage.py test; cd ..
 | Đăng ký    | Danh sách, lọc theo sinh viên/đề tài/trạng thái, đăng ký mới, duyệt, từ chối, xóa |
 | API Docs   | Trạng thái 3 service (hoạt động / không) và link Swagger của từng service |
 
-Web Portal **không có database**. Mọi trang đều gọi REST API của 3 service (`portal/api_client.py`). Ví dụ bảng Đăng ký: lấy danh sách đăng ký từ Registration Service, sau đó lấy tên sinh viên từ Student Service và tên đề tài từ Thesis Service rồi ghép lại để hiển thị. Nếu một service bị tắt, trang vẫn mở được và hiện thông báo "... Service không hoạt động".
+Web Portal dùng `portal_db` riêng để lưu tài khoản và session Django; dữ liệu nghiệp vụ vẫn được lấy qua REST API của 3 service (`portal/api_client.py`). Ví dụ bảng Đăng ký: lấy danh sách đăng ký từ Registration Service, sau đó lấy tên sinh viên từ Student Service và tên đề tài từ Thesis Service rồi ghép lại để hiển thị. Nếu một service bị tắt, trang vẫn mở được và hiện thông báo "... Service không hoạt động".
 
 ## 9. Danh sách API
 

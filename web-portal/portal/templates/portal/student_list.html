@@ -5,7 +5,9 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h1 class="mb-0">Danh sách sinh viên</h1>
-    <a href="{% url 'student_create' %}" class="btn btn-primary">Thêm sinh viên</a>
+    {% if user.is_staff %}
+        <a href="{% url 'student_create' %}" class="btn btn-primary">Thêm sinh viên</a>
+    {% endif %}
 </div>
 
 <form method="get" class="row g-2 mb-3">
@@ -27,7 +29,7 @@
             <th>Email</th>
             <th>Lớp</th>
             <th>Ngành</th>
-            <th style="width: 130px">Thao tác</th>
+            {% if user.is_staff %}<th style="width: 130px">Thao tác</th>{% endif %}
         </tr>
     </thead>
     <tbody>
@@ -39,17 +41,19 @@
                 <td>{{ s.email }}</td>
                 <td>{{ s.class_name }}</td>
                 <td>{{ s.major }}</td>
-                <td>
-                    <a href="{% url 'student_edit' s.id %}" class="btn btn-sm btn-outline-primary">Sửa</a>
-                    <form method="post" action="{% url 'student_delete' s.id %}" class="d-inline"
-                          onsubmit="return confirm('Xóa sinh viên {{ s.student_code|escapejs }} - {{ s.full_name|escapejs }}?');">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-sm btn-outline-danger">Xóa</button>
-                    </form>
-                </td>
+                {% if user.is_staff %}
+                    <td>
+                        <a href="{% url 'student_edit' s.id %}" class="btn btn-sm btn-outline-primary">Sửa</a>
+                        <form method="post" action="{% url 'student_delete' s.id %}" class="d-inline"
+                              onsubmit="return confirm('Xóa sinh viên {{ s.student_code|escapejs }} - {{ s.full_name|escapejs }}?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-outline-danger">Xóa</button>
+                        </form>
+                    </td>
+                {% endif %}
             </tr>
         {% empty %}
-            <tr><td colspan="7" class="text-center text-muted">Không có sinh viên nào.</td></tr>
+            <tr><td colspan="{% if user.is_staff %}7{% else %}6{% endif %}" class="text-center text-muted">Không có sinh viên nào.</td></tr>
         {% endfor %}
     </tbody>
 </table>

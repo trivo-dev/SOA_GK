@@ -1,0 +1,81 @@
+{% extends "portal/base.html" %}
+
+{% block title %}Đăng ký tài khoản{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-4">
+    <div class="col-md-6 col-lg-5">
+        <div class="card shadow-sm">
+            <div class="card-body p-4">
+
+                <h1 class="text-center mb-2">Tạo tài khoản</h1>
+                <p class="text-muted text-center mb-4">
+                    Đăng ký để sử dụng hệ thống
+                </p>
+
+                <form method="post">
+                    {% csrf_token %}
+
+                    <div class="mb-3">
+                        <label class="form-label" for="id_username">
+                            Tên đăng nhập(MSV)
+                        </label>
+                        <input
+                            class="form-control"
+                            id="id_username"
+                            name="username"
+                            required
+                            value="{{ form.username.value|default:'' }}"
+                        >
+                        <div class="text-danger small">
+                            {{ form.username.errors }}
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="id_password1">
+                            Mật khẩu
+                        </label>
+                        <input
+                            class="form-control"
+                            type="password"
+                            id="id_password1"
+                            name="password1"
+                            required
+                        >
+                        <div class="text-danger small">
+                            {{ form.password1.errors }}
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="id_password2">
+                            Nhập lại mật khẩu
+                        </label>
+                        <input
+                            class="form-control"
+                            type="password"
+                            id="id_password2"
+                            name="password2"
+                            required
+                        >
+                        <div class="text-danger small">
+                            {{ form.password2.errors }}
+                        </div>
+                    </div>
+
+                    <button class="btn btn-primary w-100" type="submit">
+                        Đăng ký
+                    </button>
+                </form>
+
+                <p class="text-center mt-3 mb-0">
+                    Đã có tài khoản?
+                    <a href="{% url 'login' %}">Đăng nhập</a>
+                </p>
+
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
