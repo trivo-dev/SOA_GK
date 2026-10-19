@@ -15,12 +15,42 @@
 </head>
 <body>
 
+
 <nav class="navbar navbar-dark bg-primary">
     <div class="container-fluid">
-        <a class="navbar-brand fw-semibold" href="{% url 'dashboard' %}">QUẢN LÝ ĐỒ ÁN TỐT NGHIỆP</a>
-        <span class="navbar-text text-white small">Khoa Công nghệ thông tin</span>
+        <a class="navbar-brand fw-semibold" href="{% url 'dashboard' %}">
+            QUẢN LÝ ĐỒ ÁN TỐT NGHIỆP
+        </a>
+
+        <div class="d-flex align-items-center gap-3">
+            <span class="navbar-text text-white small">
+                Khoa Công nghệ thông tin
+            </span>
+
+            {% if user.is_authenticated %}
+                <span class="text-white">
+                    Xin chào, {{ user.username }}
+                </span>
+
+                <form method="post" action="{% url 'logout' %}" class="m-0">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline-light btn-sm">
+                        Đăng xuất
+                    </button>
+                </form>
+            {% else %}
+                <a href="{% url 'login' %}" class="btn btn-outline-light btn-sm">
+                    Đăng nhập
+                </a>
+
+                <a href="{% url 'register' %}" class="btn btn-light btn-sm">
+                    Đăng ký
+                </a>
+            {% endif %}
+        </div>
     </div>
 </nav>
+
 
 <div class="container-fluid">
     <div class="row">

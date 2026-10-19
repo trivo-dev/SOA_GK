@@ -2,10 +2,12 @@
 Test Web Portal. 3 service được giả lập bằng cách mock requests.request,
 nên không cần chạy service nào khi chạy test.
 """
+from copy import deepcopy
 from unittest.mock import MagicMock, patch
 
 import requests
-from django.test import SimpleTestCase
+from django.contrib.auth import get_user_model
+from django.test import TestCase
 
 STUDENTS = [{"id": 1, "student_code": "SV001", "full_name": "Nguyễn Văn An",
              "email": "an@x.vn", "class_name": "CNTT1", "major": "CNTT"}]
@@ -18,7 +20,7 @@ REGISTRATIONS = [{"id": 1, "student_id": 1, "thesis_id": 1,
 def make_response(status_code, data=None):
     response = MagicMock()
     response.status_code = status_code
-    response.json.return_value = data
+    response.json.return_value = deepcopy(data)
     response.content = b"x" if data is not None else b""
     return response
 
@@ -39,7 +41,24 @@ def fake_request(method, url, timeout=None, **kwargs):
 
 
 @patch("portal.api_client.requests.request", side_effect=fake_request)
-class PortalPageTests(SimpleTestCase):
+class PortalPageTests(TestCase):
+    def setUp(self):
+        user = get_user_model().objects.create_user(
+            username="test-admin",
+            password="strong-test-password",
+            is_staff=True,
+        )
+        self.client.force_login(user)
+
+    def test_dashboard_requires_login(self, mock_request):
+        self.client.cookies.clear()
+        response = self.client.get("/")
+        self.assertRedirects(
+            response,
+            "/dang-nhap/?next=/",
+            fetch_redirect_response=False,
+        )
+
     def test_dashboard(self, mock_request):
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
@@ -57,6 +76,18 @@ class PortalPageTests(SimpleTestCase):
         self.assertContains(response, "DT001 - Hệ thống quản lý thư viện")
         self.assertContains(response, "Chờ duyệt")
 
+    def test_student_sees_only_own_registrations(self, mock_request):
+        student = get_user_model().objects.create_user(
+            username="SV001",
+            password="strong-test-password",
+        )
+        self.client.force_login(student)
+
+        response = self.client.get("/dang-ky/")
+
+        self.assertContains(response, "SV001 - Nguyễn Văn An")
+        self.assertNotContains(response, "SV002 - Trần Văn Bình")
+
     def test_create_student_redirects(self, mock_request):
         data = {"student_code": "SV002", "full_name": "Trần Văn Bình", "email": "binh@x.vn"}
         response = self.client.post("/sinh-vien/them/", data)
@@ -69,8 +100,58 @@ class PortalPageTests(SimpleTestCase):
 
 
 @patch("portal.api_client.requests.request", side_effect=requests.ConnectionError())
-class ServiceDownTests(SimpleTestCase):
+class ServiceDownTests(TestCase):
+    def setUp(self):
+        user = get_user_model().objects.create_user(
+            username="test-admin",
+            password="strong-test-password",
+            is_staff=True,
+        )
+        self.client.force_login(user)
+
     def test_dashboard_still_renders_when_services_down(self, mock_request):
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Student Service không hoạt động")
+
+
+class PortalAuthenticationTests(TestCase):
+    def test_login_authenticates_portal_user(self):
+        get_user_model().objects.create_user(
+            username="student1",
+            password="strong-test-password",
+        )
+        response = self.client.post(
+            "/dang-nhap/",
+            {"username": "student1", "password": "strong-test-password"},
+        )
+
+        self.assertRedirects(response, "/", fetch_redirect_response=False)
+        self.assertIn("_auth_user_id", self.client.session)
+
+    def test_register_creates_inactive_student_account(self):
+        response = self.client.post(
+            "/dang-ky-tai-khoan/",
+            {
+                "username": "new-student",
+                "password1": "strong-test-password",
+                "password2": "strong-test-password",
+            },
+        )
+
+        self.assertRedirects(response, "/dang-nhap/", fetch_redirect_response=False)
+        user = get_user_model().objects.get(username="new-student")
+        self.assertFalse(user.is_active)
+        self.assertTrue(user.groups.filter(name="student").exists())
+
+    def test_non_admin_cannot_delete_thesis(self):
+        get_user_model().objects.create_user(
+            username="student2",
+            password="strong-test-password",
+        )
+        self.client.login(username="student2", password="strong-test-password")
+
+        response = self.client.post("/de-tai/1/xoa/")
+
+        self.assertEqual(response.status_code, 302)
+        self.assertNotEqual(response.url, "/de-tai/")

@@ -6,8 +6,12 @@ Không có model, không có truy vấn database.
 """
 from django.conf import settings
 from django.contrib import messages
+from django.contrib.auth import login, logout
+from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
+from django.contrib.auth.models import Group
 from django.shortcuts import redirect, render
 from django.utils.dateparse import parse_datetime
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from . import api_client as api
@@ -176,6 +180,24 @@ def registration_list(request):
     students = fetch(request, api.students.list, default=[])
     theses = fetch(request, api.theses.list, default=[])
 
+    if not request.user.is_staff:
+        own_student = next(
+            (
+                student for student in students
+                if student["student_code"].casefold() == request.user.username.casefold()
+            ),
+            None,
+        )
+        if own_student:
+            registrations = [
+                registration for registration in registrations
+                if registration["student_id"] == own_student["id"]
+            ]
+            students = [own_student]
+        else:
+            registrations = []
+            students = []
+
     # Ghép tên sinh viên / đề tài theo id (dữ liệu nằm ở 2 service khác)
     student_map = {s["id"]: s for s in students}
     thesis_map = {t["id"]: t for t in theses}
@@ -198,11 +220,31 @@ def registration_create(request):
     students = fetch(request, api.students.list, default=[])
     theses = fetch(request, api.theses.list, default=[])
 
+    own_student = None
+    if not request.user.is_staff:
+        own_student = next(
+            (
+                student for student in students
+                if student["student_code"].casefold() == request.user.username.casefold()
+            ),
+            None,
+        )
+        if own_student is None:
+            messages.error(
+                request,
+                "Tên đăng nhập phải khớp mã sinh viên đã được tạo trong hệ thống.",
+            )
+            return redirect("registration_list")
+        students = [own_student]
+
     form = RegistrationForm(request.POST or None, students=students, theses=theses)
     if request.method == "POST" and form.is_valid():
         try:
             # Registration Service sẽ tự gọi Student Service + Thesis Service để kiểm tra
-            api.registrations.create(form.cleaned_data)
+            data = form.cleaned_data
+            if own_student:
+                data["student_id"] = own_student["id"]
+            api.registrations.create(data)
             messages.success(request, "Đăng ký đề tài thành công.")
             return redirect("registration_list")
         except ApiError as exc:
@@ -254,3 +296,64 @@ def api_docs(request):
         for name, desc, url, db in services
     ]
     return render(request, "portal/api_docs.html", {"menu": "api_docs", "services": rows})
+
+# --------------------------------------------------------------------Đăng nhập
+def login_view(request):
+    if request.user.is_authenticated:
+        return redirect("dashboard")
+
+    form = AuthenticationForm(request, data=request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        login(request, form.get_user())
+        next_url = request.POST.get("next") or request.GET.get("next", "")
+        if url_has_allowed_host_and_scheme(
+            next_url,
+            allowed_hosts={request.get_host()},
+            require_https=request.is_secure(),
+        ):
+            return redirect(next_url)
+        return redirect("dashboard")
+
+    return render(
+        request,
+        "portal/login.html",
+        {"form": form, "next": request.GET.get("next", "")},
+    )
+
+
+#------------------------------------------------------------------- Đăng ký tài khoản
+def register_view(request):
+    if request.user.is_authenticated:
+        return redirect("dashboard")
+
+    form = UserCreationForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        if form.cleaned_data["username"].casefold() == "admin123":
+            form.add_error("username", "Tên đăng nhập này được dành riêng cho quản trị viên.")
+            return render(request, "portal/register.html", {"form": form})
+
+        user = form.save()
+        user.is_active = False
+        user.save(update_fields=["is_active"])
+        student_group, _ = Group.objects.get_or_create(name="student")
+        user.groups.add(student_group)
+        messages.success(
+            request,
+            "Đăng ký thành công. Quản trị viên cần kích hoạt tài khoản trước khi đăng nhập.",
+        )
+        return redirect("login")
+
+    return render(
+        request,
+        "portal/register.html",
+        {"form": form}
+    )
+
+
+#----------------------------------------------------------------------- Đăng xuất
+def logout_view(request):
+    if request.method == "POST":
+        logout(request)
+        messages.success(request, "Bạn đã đăng xuất.")
+
+    return redirect("login")

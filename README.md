@@ -4,14 +4,14 @@ Bài thực hành giữa kỳ môn **Công nghệ phần mềm** — Django, Dja
 
 ## 1. Giới thiệu
 
-Khoa cần một hệ thống quản lý việc sinh viên đăng ký đề tài đồ án tốt nghiệp. Hệ thống được xây dựng theo **kiến trúc hướng dịch vụ (SOA)**: gồm **3 Web Service độc lập**, mỗi service có database riêng và giao tiếp với nhau qua **HTTP/REST (JSON)**. Ngoài ra có một **Web Portal** là giao diện quản lý, sử dụng lại API của 3 service.
+| Service              | Trách nhiệm         | Port | Database          | Bảng       |
+| -------------------- | ------------------- | ---- | ----------------- | ---------- |
+| Student Service      | Quản lý sinh viên   | 8001 | `student_db`      | `sinhvien` |
+| Thesis Service       | Quản lý đề tài      | 8002 | `thesis_db`       | `detai`    |
+| Registration Service | Quản lý đăng ký     | 8003 | `registration_db` | `dangky`   |
+| Web Portal (giao diện) | Giao diện và tài khoản người dùng | 8000 | `portal_db` | Django auth/session |
 
-| Service              | Trách nhiệm                  | Port | Database          | Bảng       |
-| -------------------- | ---------------------------- | ---- | ----------------- | ---------- |
-| Student Service      | Quản lý sinh viên            | 8001 | `student_db`      | `sinhvien` |
-| Thesis Service       | Quản lý đề tài               | 8002 | `thesis_db`       | `detai`    |
-| Registration Service | Quản lý đăng ký đề tài       | 8003 | `registration_db` | `dangky`   |
-| Web Portal           | Giao diện quản lý (Bootstrap)| 8000 | không có          | —          |
+**Giao diện web:** http://127.0.0.1:8000/. Portal lưu tài khoản và session trong `portal_db`; dữ liệu sinh viên, đề tài và đăng ký vẫn chỉ thuộc database của từng service.
 
 ## 2. Kiến trúc SOA
 
@@ -84,15 +84,17 @@ SOA_GK/
 │       ├── tests.py                  # Mock HTTP bằng unittest.mock
 │       └── management/commands/seed_data.py
 │
-└── web-portal/                       # Port 8000 - giao diện web, không có database
-    ├── .env.example                  # URL của 3 service
-    └── portal/
-        ├── api_client.py             # Gọi REST API của 3 service
-        ├── forms.py                  # Form thêm/sửa sinh viên, đề tài, đăng ký
-        ├── views.py                  # Dashboard, Sinh viên, Đề tài, Đăng ký, API Docs
-        ├── urls.py
-        ├── templates/portal/         # base.html, *_list.html, *_form.html
-        └── tests.py
+├── web-portal/                       # Port 8000 - giao diện web, portal_db lưu tài khoản
+│   ├── .env.example                  # URL của 3 service
+│   └── portal/
+│       ├── api_client.py             # Gọi REST API của 3 service (requests)
+│       ├── forms.py                  # Form Django (thêm/sửa sinh viên, đề tài, đăng ký)
+│       ├── views.py                  # Dashboard, Sinh viên, Đề tài, Đăng ký, API Docs
+│       ├── urls.py
+│       ├── templates/portal/         # Bootstrap 5: base.html, *_list.html, *_form.html
+│       └── tests.py
+│
+└── run_all.bat                       # Mở 4 cửa sổ chạy 4 service cùng lúc
 ```
 
 ## 5. Cài đặt
@@ -149,12 +151,39 @@ THESIS_SERVICE_URL=http://127.0.0.1:8002
 
 > Nên dùng `127.0.0.1` thay vì `localhost`: trên Windows, `localhost` được thử IPv6 trước nên mỗi request chậm thêm khoảng 2 giây.
 
-### 5.4. Tạo bảng
+Một PostgreSQL server, 4 database riêng. Dùng `psql` (hoặc pgAdmin):
+
+```powershell
+& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -h localhost
+```
+
+```sql
+CREATE DATABASE student_db;
+CREATE DATABASE thesis_db;
+CREATE DATABASE registration_db;
+CREATE DATABASE portal_db;
+```
+
+## 7. Cài requirements
+
+Dùng một virtualenv chung ở thư mục gốc (mỗi service vẫn có `requirements.txt` riêng):
+
+```powershell
+cd D:\SOA\Demo_GK
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r student-service\requirements.txt -r thesis-service\requirements.txt -r registration-service\requirements.txt -r web-portal\requirements.txt
+```
+
+> Nếu PowerShell chặn `activate`: chạy `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` một lần.
+
+Tạo bảng (migrate) cho từng service:
 
 ```powershell
 cd student-service;      python manage.py migrate; cd ..
 cd thesis-service;       python manage.py migrate; cd ..
 cd registration-service; python manage.py migrate; cd ..
+cd web-portal;           python manage.py migrate; cd ..
 ```
 
 Web Portal không có database nên không cần `migrate`.
@@ -218,7 +247,9 @@ cd registration-service; python manage.py seed_data; cd ..
 
 Tài liệu OpenAPI (YAML) của mỗi service: `/api/schema/`.
 
-## 7. Danh sách API
+Web Portal dùng `portal_db` riêng để lưu tài khoản và session Django; dữ liệu nghiệp vụ vẫn được lấy qua REST API của 3 service (`portal/api_client.py`). Ví dụ bảng Đăng ký: lấy danh sách đăng ký từ Registration Service, sau đó lấy tên sinh viên từ Student Service và tên đề tài từ Thesis Service rồi ghép lại để hiển thị. Nếu một service bị tắt, trang vẫn mở được và hiện thông báo "... Service không hoạt động".
+
+## 9. Danh sách API
 
 ### Student Service — `http://127.0.0.1:8001`
 

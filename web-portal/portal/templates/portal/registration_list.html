@@ -69,25 +69,27 @@
                     {% else %}<span class="badge text-bg-warning">Chờ duyệt</span>{% endif %}
                 </td>
                 <td>
-                    {% if r.status != "APPROVED" %}
+                    {% if user.is_staff and r.status != "APPROVED" %}
                         <form method="post" action="{% url 'registration_status' r.id %}" class="d-inline">
                             {% csrf_token %}
                             <input type="hidden" name="status" value="APPROVED">
                             <button type="submit" class="btn btn-sm btn-outline-success">Duyệt</button>
                         </form>
                     {% endif %}
-                    {% if r.status != "REJECTED" %}
+                    {% if user.is_staff and r.status != "REJECTED" %}
                         <form method="post" action="{% url 'registration_status' r.id %}" class="d-inline">
                             {% csrf_token %}
                             <input type="hidden" name="status" value="REJECTED">
                             <button type="submit" class="btn btn-sm btn-outline-secondary">Từ chối</button>
                         </form>
                     {% endif %}
-                    <form method="post" action="{% url 'registration_delete' r.id %}" class="d-inline"
-                          onsubmit="return confirm('Xóa đăng ký này?');">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-sm btn-outline-danger">Xóa</button>
-                    </form>
+                    {% if user.is_staff %}
+                        <form method="post" action="{% url 'registration_delete' r.id %}" class="d-inline"
+                              onsubmit="return confirm('Xóa đăng ký này?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-outline-danger">Xóa</button>
+                        </form>
+                    {% endif %}
                 </td>
             </tr>
         {% empty %}
